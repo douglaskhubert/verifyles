@@ -1,104 +1,108 @@
 <?php
 
-    if (count($argv) < 2) {
-        echo "Nenhum parâmetro passado.\n
-        Exemplo de uso:\n\n
-        php verify-photos.php <diretório-a-ser-varrido> <extensão-de-arquivos-procurada>\n\n";
-        die;
-    }
+$path = $argv[1];
+if (!empty($argv[2])){
+    $extension = $argv[2];
+}
 
-    $path = (string) $argv[1];
-    $extension = null;
-    if ($argv[2] != null) {
-        $extension = $argv[2];
-    }
-    
-    chdir($path);
-    echo "Changed to directory: $path \n\n";
-    if ($extension != null) {
-        $files = shell_exec("ls | grep .$extension");
-    } else {
-        $files = shell_exec("ls");
-    }
-    $files = explode("\n", $files);
+chdir($path);
+
+$files = scandir($path);
+
+foreach ($files as $file) {
+    if ($file != "" && $file != "." && $file != "..") {
+        $file = $path."/".$file;
+        $answer = choice($file);
+        treat_answer($answer, $file);
         
-    
-    foreach ($files as $file) {
-        if ($file != "" && $file != "." && $file != "..") {
-            $answer = initialChoice($file);
-            treatAnswer($answer, $file);
-        }
     }
+}
 
-
-
-function initialChoice($file = null)
+function choice($file = null)
 {
-    echo "Arquivo alvo: $file \n\n 
+    echo "Arquivo alvo: $file \n\n
 O que deseja fazer?\n\n
 (1) Abrir e verificar do que se trata.
 (2) Renomear arquivo.
 (3) Mover para uma lixeira temporária.
-(4) Não fazer nada e pular para o próximo arquivo.\n\n";
+(4) Pular para o próximo arquivo.\n
+(q) Sair\n\n";
     $answer = null;
     $answer = strtoupper(readline("Opção: "));
-    if ($answer != '1' && $answer != '2' && $answer != '3') {
+    PHP_EOL;
+    if ($answer != '1' && $answer != '2' && $answer != '3' && $answer != '4' && $answer != "Q") {
         echo "Escolha uma opção válida. ";
-        initialChoice($file);
+        choice($file);
     }
 
     return $answer;
 }
 
-function treatAnswer($answer, $file)
+function treat_answer($answer, $file)
 {
     switch ($answer) {
         case '1':
             echo "Você escolheu a opção 1\n";
             echo "Abrindo arquivo $file \n";
             shell_exec("xdg-open '$file'\n");
-            treatAnswer(initialChoice($file), $file);
+            treat_answer(choice($file), $file);
             break;
         case '2':
-
-
+            echo "Você escolheu a opção 2\n";
+            $file_exploded = explode(".", $file);
+            $file_extension = end($file_exploded);
+            $new_name = readline("Insira um novo nome para o arquivo: ").".".$file_extension;
+            rename($file, $new_name);
+            treat_answer(choice($new_name), $new_name);
+            break;
         case '3':
             echo "Você escolheu a opção 3 - Mover para uma lixeira temporária.\n";
-
             if (!file_exists('./trash')) {
-                shell_exec("mkdir ./trash");
+                mkdir("./trash");
             }
-            shell_exec("echo '$file' >> ./trash/files-to-remove.txt");
+            put_file_in_tmp_trash($file);
             return;
         case '4':
-            echo "Pulando para o próximo arquivo...\n";
+            echo "\nPulando para o próximo arquivo...\n===============================\n";
             return;
+        case 'Q':
+            get_files_in_tmp_trash();
+            
+            echo "Saindo...\n";
+            die();
     }
 }
 
-function addToRemovingFiles($file)
+function put_file_in_tmp_trash($file)
 {
-    array_push($removingFiles, $file);
-    return $removingFiles;
+    $ftr = fopen("./trash/files-to-remove.txt", "a");
+    fwrite($ftr, PHP_EOL);
+    fwrite($ftr, $file);
+    fclose($ftr);
+}
+function get_files_in_tmp_trash(){
+    if (file_exists("./trash/files-to-remove.txt")){
+        $arr_files_to_remove = files_in_tmp_trash_to_array();
+        foreach ($arr_files_to_remove as $key => $file) {
+            $line = "\n";
+            if ($key == (count($arr_files_to_remove)-1)) {
+                $line = "\n\n";
+            }
+            echo $file.$line;
+        }
+        $remove = strtoupper(readline("\n Deseja realmente remover esses arquivos?(y/N)"));
+        if ($remove === "Y") {
+
+        }
+    }
+    echo "Não foi inserido nenhum arquivo para remoção";
 }
 
-// foreach ($files as $file) {
-//     if ($file != "" && $file != "." && $file != "..") {
-//         $isOpenFile = null;
-//         $isOpenFile = strtoupper(readline("Deseja abrir o arquivo: $file (Y/n):\n"));
-//         if ($isOpenFile == "Y") {
-//             echo "Abrindo arquivo $file \n";
-//             shell_exec("xdg-open '$file'\n");
-//             $isRemFile = strtoupper(readline("Deseja mover o arquivo '$file' para a lixeira temporária para posterior exclusão?(N/y):"));
-//             if ($isRemFile == "Y") {
-//                 if (!file_exists("./trash")) {
-//                     shell_exec("mkdir ./trash");
-//                     shell_exec("mv '$file' ./trash");
-//                 } else {
-//                     shell_exec("mv '$file' ./trash");
-//                 }
-//             }
+function files_in_tmp_trash_to_array()
+{
+    $ftr = fopen("./trash/files-to-remove.txt", "r");
+    $files_to_remove = fread($ftr, filesize("./trash/files-to-remove.txt"));
+    $arr_files_to_remove = explode("\n", $files_to_remove);
 
-//         }
-//     }
-// }
+    return $arr_files_to_remove;
+}
